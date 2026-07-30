@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { glossary, lessons, modules, type Lesson } from "./course-data";
 
-type View = "course" | "lab" | "atlas" | "roadmap";
+type View = "home" | "course" | "lab" | "atlas" | "roadmap";
 type Lab = "collective" | "performance" | "topology" | "training";
 type Collective =
   | "broadcast" | "reduce" | "allreduce" | "scatter" | "gather"
@@ -110,6 +110,56 @@ function CourseLesson({
   onToggle: () => void;
 }) {
   const [codeIndex, setCodeIndex] = useState(0);
+  const [teachingStep, setTeachingStep] = useState(0);
+  const teachingSteps = [
+    {
+      label: "Intuition",
+      title: "Build the mental picture",
+      body: lesson.intuition,
+      points: [
+        "What does each GPU own before communication?",
+        "Which GPUs need which result afterward?",
+        "Only then should we choose messages and an algorithm.",
+      ],
+    },
+    {
+      label: "Meaning",
+      title: "Name the required transformation",
+      body: lesson.thesis,
+      points: lesson.number === 1
+        ? [
+            "The application states the group-wide result it needs.",
+            "The collective library chooses a correct message schedule.",
+            "The machine executes that schedule over NVLink, PCIe, or the network.",
+          ]
+        : lesson.algorithm.slice(0, 3),
+    },
+    {
+      label: "Math",
+      title: "Make the meaning precise",
+      body: lesson.math[0],
+      points: lesson.math.slice(1),
+    },
+    {
+      label: "Messages",
+      title: "Turn the meaning into messages",
+      body: lesson.algorithm[0],
+      points: lesson.algorithm.slice(1),
+    },
+    {
+      label: "Machine",
+      title: "Map messages onto a real system",
+      body: lesson.implementation[0],
+      points: lesson.implementation.slice(1),
+    },
+    {
+      label: "Performance",
+      title: "Find what limits completion",
+      body: lesson.performance[0],
+      points: lesson.performance.slice(1),
+    },
+  ];
+  const currentStep = teachingSteps[teachingStep];
   return (
     <article className="lesson" key={lesson.id}>
       <header className="lesson-hero">
@@ -127,26 +177,79 @@ function CourseLesson({
       </section>
 
       {lesson.number === 1 && (
-        <section className="running-example">
-          <div>
-            <span className="mini-label">THE RUNNING SYSTEM</span>
-            <h2>Four GPUs. One evolving mental model.</h2>
-            <p>The same values return throughout the course. Reduction treats positions as corresponding quantities; gathering treats each vector as a distinct shard.</p>
+        <section className="worked-example">
+          <div className="worked-heading">
+            <span className="mini-label">ONE COMPLETE EXAMPLE</span>
+            <h2>Why four GPUs must communicate</h2>
+            <p>Each GPU computed only part of the answer. Every GPU needs the same total before training can continue.</p>
           </div>
-          <div className="gpu-grid compact">
-            {input.map((v, i) => <div className="gpu-card" key={i}><b>GPU{i}</b><code>{v}</code></div>)}
+          <div className="transformation">
+            <div className="transform-stage">
+              <b>1 · BEFORE</b>
+              <p>Each GPU knows only its local vector.</p>
+              <div className="gpu-grid compact">
+                {input.map((v, i) => <div className="gpu-card" key={i}><b>GPU{i}</b><code>{v}</code></div>)}
+              </div>
+            </div>
+            <div className="transform-arrow">
+              <span>AllReduce SUM</span>
+              <strong>→</strong>
+              <small>exchange + add</small>
+            </div>
+            <div className="transform-stage">
+              <b>2 · AFTER</b>
+              <p>Every GPU knows the elementwise total.</p>
+              <div className="gpu-grid compact">
+                {Array(4).fill("[16, 20]").map((v, i) => <div className="gpu-card result" key={i}><b>GPU{i}</b><code>{v}</code></div>)}
+              </div>
+            </div>
           </div>
+          <div className="calculation">
+            <span>Position 0</span><code>1 + 3 + 5 + 7 = 16</code>
+            <span>Position 1</span><code>2 + 4 + 6 + 8 = 20</code>
+          </div>
+          <div className="meaning-line"><b>The key idea:</b> “AllReduce” names the result. Ring, tree, and recursive doubling are different ways to produce it.</div>
         </section>
       )}
 
-      <div className="lesson-grid">
-        <LessonSection title="Mathematical model" items={lesson.math} />
-        <LessonSection title="Algorithmic reasoning" items={lesson.algorithm} />
-        <LessonSection title="Implementation path" items={lesson.implementation} />
-        <LessonSection title="Performance model" items={lesson.performance} />
-        <LessonSection title="How real systems use it" items={lesson.systems} />
-        <LessonSection title="Failure modes & misconceptions" items={lesson.pitfalls} tone="warning" />
-      </div>
+      <section className="guided-learning">
+        <div className="section-heading">
+          <div><span className="mini-label">GUIDED EXPLANATION</span><h2>Learn it in the right order</h2></div>
+          <span className="step-count">Step {teachingStep + 1} of {teachingSteps.length}</span>
+        </div>
+        <div className="teaching-tabs" role="tablist" aria-label="Lesson explanation stages">
+          {teachingSteps.map((step, i) => (
+            <button key={step.label} role="tab" aria-selected={teachingStep === i} className={teachingStep === i ? "active" : ""} onClick={() => setTeachingStep(i)}>
+              <span>{i + 1}</span>{step.label}
+            </button>
+          ))}
+        </div>
+        <div className="teaching-panel">
+          <div className="teaching-number">{String(teachingStep + 1).padStart(2, "0")}</div>
+          <div>
+            <span className="mini-label">{currentStep.label}</span>
+            <h2>{currentStep.title}</h2>
+            <p className="teaching-body">{currentStep.body}</p>
+            {currentStep.points.length > 0 && <ul>{currentStep.points.map((point, i) => <li key={i}>{point}</li>)}</ul>}
+          </div>
+        </div>
+        <div className="teaching-nav">
+          <button disabled={teachingStep === 0} onClick={() => setTeachingStep(teachingStep - 1)}>← Previous idea</button>
+          <button disabled={teachingStep === teachingSteps.length - 1} onClick={() => setTeachingStep(teachingStep + 1)}>Next idea →</button>
+        </div>
+      </section>
+
+      <details className="reference-notes">
+        <summary>Open the complete technical reference for this lesson</summary>
+        <div className="lesson-grid">
+          <LessonSection title="Mathematical model" items={lesson.math} />
+          <LessonSection title="Algorithmic reasoning" items={lesson.algorithm} />
+          <LessonSection title="Implementation path" items={lesson.implementation} />
+          <LessonSection title="Performance model" items={lesson.performance} />
+          <LessonSection title="How real systems use it" items={lesson.systems} />
+          <LessonSection title="Failure modes & misconceptions" items={lesson.pitfalls} tone="warning" />
+        </div>
+      </details>
 
       <section className="code-ladder">
         <div className="section-heading">
@@ -394,8 +497,78 @@ function Roadmap({ completed }: { completed: Set<string> }) {
   );
 }
 
+function Home({ onStart, onSimulate }: { onStart: () => void; onSimulate: () => void }) {
+  return (
+    <main className="main-content home">
+      <section className="home-hero">
+        <div className="home-copy">
+          <span className="eyebrow">DISTRIBUTED GPU COMMUNICATION · FROM ZERO</span>
+          <h1>Why do four GPUs need to talk?</h1>
+          <p>Because each GPU computes only part of the answer. Collectives are the coordinated communication patterns that turn those partial answers into the data every GPU needs next.</p>
+          <div className="home-actions">
+            <button className="primary-action" onClick={onStart}>Start with the first example →</button>
+            <button className="secondary-action" onClick={onSimulate}>Open the simulator</button>
+          </div>
+          <small>No prerequisites beyond basic systems and networking. We define every term before using it.</small>
+        </div>
+        <div className="hero-example" aria-label="Four GPU allreduce example">
+          <div className="hero-example-label">THE ENTIRE COURSE STARTS HERE</div>
+          <div className="hero-gpus before">
+            {input.map((v, i) => <div key={i}><span>GPU{i}</span><code>{v}</code></div>)}
+          </div>
+          <div className="hero-operation">
+            <i />
+            <b>AllReduce SUM</b>
+            <span>exchange partial answers + add matching positions</span>
+            <i />
+          </div>
+          <div className="hero-gpus after">
+            {Array(4).fill("[16, 20]").map((v, i) => <div key={i}><span>GPU{i}</span><code>{v}</code></div>)}
+          </div>
+          <div className="hero-equation"><code>[1,2] + [3,4] + [5,6] + [7,8] = [16,20]</code></div>
+        </div>
+      </section>
+
+      <section className="definition-strip">
+        <div><span>01</span><b>Collective</b><p>A group-wide data transformation such as Broadcast, AllReduce, or All-to-All.</p></div>
+        <div><span>02</span><b>Algorithm</b><p>The message schedule—ring, tree, butterfly, or hierarchy—that produces the result.</p></div>
+        <div><span>03</span><b>Transport</b><p>The physical path carrying bytes: NVLink, PCIe, InfiniBand, RoCE, or Ethernet.</p></div>
+      </section>
+
+      <section className="learning-contract">
+        <div>
+          <span className="mini-label">HOW EVERY LESSON WORKS</span>
+          <h2>One idea. Six questions. No skipped steps.</h2>
+          <p>Advanced details stay available, but they never appear before the mental model that makes them useful.</p>
+        </div>
+        <ol>
+          <li><span>1</span><div><b>What is the intuition?</b><p>Start with a physical analogy.</p></div></li>
+          <li><span>2</span><div><b>What changes?</b><p>Show exact ownership before and after.</p></div></li>
+          <li><span>3</span><div><b>What does the math say?</b><p>Define symbols, then derive the result.</p></div></li>
+          <li><span>4</span><div><b>Which messages are sent?</b><p>Animate every intermediate step.</p></div></li>
+          <li><span>5</span><div><b>How is it implemented?</b><p>Climb from Python to CUDA and NCCL.</p></div></li>
+          <li><span>6</span><div><b>What makes it fast or slow?</b><p>Measure latency, bytes, bottlenecks, and overlap.</p></div></li>
+        </ol>
+      </section>
+
+      <section className="course-phases">
+        <div className="section-heading">
+          <div><span className="mini-label">THE LEARNING PATH</span><h2>Build one layer at a time</h2></div>
+          <button className="text-action" onClick={onStart}>Begin lesson 1 →</button>
+        </div>
+        <div className="phase-grid">
+          <div><span>PHASE 1</span><h3>Meaning</h3><p>Ownership, ranks, groups, and the exact semantics of every collective.</p><b>Lessons 1–13</b></div>
+          <div><span>PHASE 2</span><h3>Movement</h3><p>Rings, trees, recursive exchange, topology, GPU memory, and RDMA.</p><b>Lessons 14–24</b></div>
+          <div><span>PHASE 3</span><h3>Production</h3><p>NCCL internals, protocols, proxies, framework integration, and AI parallelism.</p><b>Lessons 25–39</b></div>
+          <div><span>PHASE 4</span><h3>Engineering</h3><p>Failures, profiling, simulation, mini-NCCL, and a 1,024-GPU capstone.</p><b>Lessons 40–46</b></div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export function CourseApp() {
-  const [view, setView] = useState<View>("course");
+  const [view, setView] = useState<View>("home");
   const [lessonId, setLessonId] = useState("why-collectives");
   const [query, setQuery] = useState("");
   const [completed, setCompleted] = useState<Set<string>>(new Set());
@@ -427,13 +600,14 @@ export function CourseApp() {
     <div className="app-shell">
       <header className="topbar">
         <button className="mobile-menu" onClick={() => setSidebar(!sidebar)} aria-label="Toggle course navigation">☰</button>
-        <button className="brand" onClick={() => setView("course")}><span className="brand-mark">∑</span><span><b>COLLECTIVE</b><small>SYSTEMS LAB</small></span></button>
+        <button className="brand" onClick={() => setView("home")}><span className="brand-mark">∑</span><span><b>COLLECTIVE</b><small>SYSTEMS LAB</small></span></button>
         <nav aria-label="Primary navigation">
-          {([["course", "Course"], ["lab", "Labs"], ["atlas", "Atlas"], ["roadmap", "Roadmap"]] as [View, string][]).map(([id, label]) => <button className={view === id ? "active" : ""} onClick={() => setView(id)} key={id}>{label}</button>)}
+          {([["home", "Start"], ["course", "Lessons"], ["lab", "Simulator"], ["roadmap", "Course map"]] as [View, string][]).map(([id, label]) => <button className={view === id ? "active" : ""} onClick={() => setView(id)} key={id}>{label}</button>)}
         </nav>
         <div className="top-progress"><span>{progress}%</span><i><b style={{ width: `${progress}%` }} /></i></div>
       </header>
 
+      {view === "home" && <Home onStart={() => selectLesson("why-collectives")} onSimulate={() => setView("lab")} />}
       {view === "course" && (
         <>
           <aside className={sidebar ? "sidebar open" : "sidebar"}>
