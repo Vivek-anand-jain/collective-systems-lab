@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { glossary, lessons, modules, type Lesson } from "./course-data";
+import { toyExamples, type ToyExample } from "./toy-examples";
 
 type View = "home" | "course" | "lab" | "atlas" | "roadmap";
 type Lab = "collective" | "performance" | "topology" | "training";
@@ -100,6 +101,214 @@ function LessonSection({ title, items, tone }: { title: string; items: string[];
   );
 }
 
+function ToyWalkthrough({ example }: { example: ToyExample }) {
+  const [stage, setStage] = useState(0);
+  const stages = [
+    {
+      title: "Before communication",
+      state: example.before,
+      messages: ["No messages have been sent yet."],
+      explanation: example.setup,
+    },
+    ...example.frames,
+    {
+      title: "Final result",
+      state: example.after,
+      messages: ["The required ownership and values are now established."],
+      explanation: example.takeaway,
+    },
+  ];
+  const current = stages[stage];
+  return (
+    <section className="toy-walkthrough">
+      <div className="toy-header">
+        <div>
+          <span className="mini-label">START WITH THE TOY EXAMPLE</span>
+          <h2>{example.title}</h2>
+          <p>{example.question}</p>
+        </div>
+        <div className="toy-progress"><b>{stage + 1}</b><span>/ {stages.length}</span></div>
+      </div>
+
+      <div className="toy-stage-tabs" role="tablist" aria-label="Toy example stages">
+        {stages.map((item, i) => (
+          <button key={`${item.title}-${i}`} role="tab" aria-selected={stage === i} className={stage === i ? "active" : ""} onClick={() => setStage(i)}>
+            <span>{i}</span>{i === 0 ? "Before" : i === stages.length - 1 ? "After" : `Step ${i}`}
+          </button>
+        ))}
+      </div>
+
+      <div className="toy-canvas">
+        <div className="toy-current">
+          <span className="mini-label">{stage === 0 ? "INITIAL STATE" : stage === stages.length - 1 ? "FINAL STATE" : `MESSAGE ROUND ${stage}`}</span>
+          <h3>{current.title}</h3>
+          <p>{current.explanation}</p>
+        </div>
+        <div className="toy-gpus">
+          {current.state.map((value, rank) => (
+            <div className={stage === stages.length - 1 ? "toy-gpu final" : "toy-gpu"} key={rank}>
+              <span>RANK {rank}</span>
+              <b>GPU{rank}</b>
+              <code>{value}</code>
+            </div>
+          ))}
+        </div>
+        <div className="toy-messages">
+          <b>{stage === 0 ? "What to notice" : "Messages / actions in this stage"}</b>
+          <div>{current.messages.map((message, i) => <code key={i}>{message}</code>)}</div>
+        </div>
+      </div>
+
+      <div className="toy-controls">
+        <button disabled={stage === 0} onClick={() => setStage(stage - 1)}>← Previous state</button>
+        <span>Do not move on until you can predict the next state.</span>
+        <button disabled={stage === stages.length - 1} onClick={() => setStage(stage + 1)}>Show next state →</button>
+      </div>
+
+      <div className="toy-takeaway"><b>Why this example matters</b><p>{example.takeaway}</p></div>
+
+      <details className="full-trace">
+        <summary>Show every state together as a complete trace</summary>
+        <div>
+          {stages.map((item, i) => (
+            <article key={`${item.title}-trace-${i}`}>
+              <span>{i === 0 ? "BEFORE" : i === stages.length - 1 ? "AFTER" : `STEP ${i}`}</span>
+              <h3>{item.title}</h3>
+              <p>{item.explanation}</p>
+              <code>{item.state.map((value, rank) => `GPU${rank}=${value}`).join("  |  ")}</code>
+            </article>
+          ))}
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function DetailedLesson({ lesson, example }: { lesson: Lesson; example: ToyExample }) {
+  return (
+    <section className="deep-lesson">
+      <header>
+        <span className="mini-label">DETAILED EXPLANATION</span>
+        <h2>Connect the toy example to the real system</h2>
+        <p>We now keep the same four-GPU situation in view while moving from meaning to mathematics, messages, implementation, and performance.</p>
+      </header>
+
+      <article>
+        <div className="deep-index">01</div>
+        <div>
+          <span className="mini-label">THE PROBLEM</span>
+          <h3>What are we trying to accomplish?</h3>
+          <p className="deep-lead">{lesson.thesis}</p>
+          <p>{example.setup}</p>
+          <div className="ownership-line">
+            <div><b>Before</b><code>{example.before.map((value, rank) => `GPU${rank}=${value}`).join(" · ")}</code></div>
+            <div><b>Required after</b><code>{example.after.map((value, rank) => `GPU${rank}=${value}`).join(" · ")}</code></div>
+          </div>
+          <p>The first engineering decision is therefore not “ring or tree?” It is the semantic contract: which values correspond, what operation changes them, and where every output must live. An algorithm is correct only if it produces this exact final state for every legal input.</p>
+        </div>
+      </article>
+
+      <article>
+        <div className="deep-index">02</div>
+        <div>
+          <span className="mini-label">THE MATHEMATICS</span>
+          <h3>Define the quantities before using a formula</h3>
+          <p className="deep-lead">Mathematics compresses the example; it should not replace the example.</p>
+          <div className="math-explained">
+            {lesson.math.map((item, i) => (
+              <div key={i}>
+                <span>{i + 1}</span>
+                <code>{item}</code>
+                <p>{i === 0
+                  ? "This is the formal statement of the input, output, or operation. Every symbol must map back to a concrete rank, buffer, count, or link in the toy system."
+                  : i === 1
+                    ? "This relation tells us how the result or cost changes when ranks, bytes, or dependencies change. Substitute the toy values before generalizing."
+                    : "This term captures a cost or constraint that a simpler picture would hide. We keep it separate so measurements can tell us which part dominates."}</p>
+              </div>
+            ))}
+          </div>
+          <p>When you see \(P\), read it as “the number of participating ranks”—four in our running example. When you see \(n\), read it as the bytes in the tensor or final logical buffer. When you see \(\alpha\), think “the fixed cost of starting one dependent communication step.” When you see \(\beta\), think “time per transferred byte.”</p>
+        </div>
+      </article>
+
+      <article>
+        <div className="deep-index">03</div>
+        <div>
+          <span className="mini-label">THE ALGORITHM</span>
+          <h3>Translate the contract into ordered actions</h3>
+          <p className="deep-lead">The messages in the toy trace are not decoration. They form a dependency graph: a step can begin only when its required data and destination storage are ready.</p>
+          <ol className="algorithm-walk">
+            {lesson.algorithm.map((item, i) => (
+              <li key={i}>
+                <span>STEP {i + 1}</span>
+                <b>{item}</b>
+                <p>{i === 0
+                  ? "Establish the ownership and dependency needed to begin. At this point, no later step may assume data that has not arrived."
+                  : i === lesson.algorithm.length - 1
+                    ? "Verify the final values and owners against the semantic contract. Completion is about correctness first, speed second."
+                    : "Move or combine only the data made ready by the previous step. Independent ranks or chunks should progress in parallel when physical resources permit."}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="correctness-callout"><b>Correctness invariant</b><p>{example.takeaway} At every intermediate point, each chunk must have one well-defined meaning, owner, and readiness state.</p></div>
+        </div>
+      </article>
+
+      <article>
+        <div className="deep-index">04</div>
+        <div>
+          <span className="mini-label">THE IMPLEMENTATION</span>
+          <h3>Follow one byte from the application to the wire</h3>
+          <p className="deep-lead">A production collective spans several layers. Optimizing one layer while misunderstanding the next usually moves the bottleneck instead of removing it.</p>
+          <div className="implementation-stack">
+            {lesson.implementation.map((item, i) => (
+              <div key={i}><span>LAYER {i + 1}</span><b>{item}</b><p>{[
+                "Express the operation and validate tensor shape, datatype, group, root, and operator.",
+                "Create the logical schedule: peers, chunks, rounds, buffers, and dependencies.",
+                "Order GPU work with streams, events, readiness flags, and local reduction or copy kernels.",
+                "Progress peer, shared-memory, socket, or RDMA transfers and surface completion or failure.",
+              ][Math.min(i, 3)]}</p></div>
+            ))}
+          </div>
+          <p>For GPU communication, the typical path is application tensor → framework collective call → runtime schedule → CUDA kernel and/or proxy thread → NVLink/PCIe/NIC → remote buffer → readiness signal → consuming kernel. “Zero copy” does not remove these ownership and synchronization transitions.</p>
+        </div>
+      </article>
+
+      <article>
+        <div className="deep-index">05</div>
+        <div>
+          <span className="mini-label">THE PERFORMANCE MODEL</span>
+          <h3>Measure the critical path, not the marketing number</h3>
+          <p className="deep-lead">For the toy example, draw time from left to right. Mark when each rank becomes ready, when every message occupies a physical resource, and when the final consumer can start.</p>
+          <div className="performance-questions">
+            {lesson.performance.map((item, i) => (
+              <div key={i}><span>{String(i + 1).padStart(2, "0")}</span><b>{item}</b><p>{[
+                "Measure how many dependent startup events lie between input readiness and usable output.",
+                "Count bytes on each physical link and memory interface; the busiest shared resource sets a ceiling.",
+                "Separate arrival skew, active transfer, local reduction, synchronization, and exposed tail time.",
+              ][Math.min(i, 2)]}</p></div>
+            ))}
+          </div>
+          <p>A ring may use bandwidth efficiently yet lose on tiny messages because it has many rounds. A tree may have fewer rounds yet move a full tensor on every level. A hierarchy may add phases yet win by keeping most bytes on faster local links. The correct comparison is the full critical-path cost on the actual topology.</p>
+        </div>
+      </article>
+
+      <article>
+        <div className="deep-index">06</div>
+        <div>
+          <span className="mini-label">PRODUCTION USE AND FAILURE MODES</span>
+          <h3>Where this appears and how it breaks</h3>
+          <div className="production-grid">
+            <div><b>Real systems</b>{lesson.systems.map((item, i) => <p key={i}>{item}</p>)}</div>
+            <div className="danger"><b>Common mistakes</b>{lesson.pitfalls.map((item, i) => <p key={i}>{item}</p>)}</div>
+          </div>
+          <p>When debugging, begin with the toy invariant: compare the actual before state, message order, and after state rank by rank. Only after semantic correctness is established should you investigate protocol selection, channel count, routing, congestion, or hardware counters.</p>
+        </div>
+      </article>
+    </section>
+  );
+}
+
 function CourseLesson({
   lesson,
   complete,
@@ -110,56 +319,7 @@ function CourseLesson({
   onToggle: () => void;
 }) {
   const [codeIndex, setCodeIndex] = useState(0);
-  const [teachingStep, setTeachingStep] = useState(0);
-  const teachingSteps = [
-    {
-      label: "Intuition",
-      title: "Build the mental picture",
-      body: lesson.intuition,
-      points: [
-        "What does each GPU own before communication?",
-        "Which GPUs need which result afterward?",
-        "Only then should we choose messages and an algorithm.",
-      ],
-    },
-    {
-      label: "Meaning",
-      title: "Name the required transformation",
-      body: lesson.thesis,
-      points: lesson.number === 1
-        ? [
-            "The application states the group-wide result it needs.",
-            "The collective library chooses a correct message schedule.",
-            "The machine executes that schedule over NVLink, PCIe, or the network.",
-          ]
-        : lesson.algorithm.slice(0, 3),
-    },
-    {
-      label: "Math",
-      title: "Make the meaning precise",
-      body: lesson.math[0],
-      points: lesson.math.slice(1),
-    },
-    {
-      label: "Messages",
-      title: "Turn the meaning into messages",
-      body: lesson.algorithm[0],
-      points: lesson.algorithm.slice(1),
-    },
-    {
-      label: "Machine",
-      title: "Map messages onto a real system",
-      body: lesson.implementation[0],
-      points: lesson.implementation.slice(1),
-    },
-    {
-      label: "Performance",
-      title: "Find what limits completion",
-      body: lesson.performance[0],
-      points: lesson.performance.slice(1),
-    },
-  ];
-  const currentStep = teachingSteps[teachingStep];
+  const example = toyExamples[lesson.id];
   return (
     <article className="lesson" key={lesson.id}>
       <header className="lesson-hero">
@@ -176,68 +336,8 @@ function CourseLesson({
         <p>{lesson.intuition}</p>
       </section>
 
-      {lesson.number === 1 && (
-        <section className="worked-example">
-          <div className="worked-heading">
-            <span className="mini-label">ONE COMPLETE EXAMPLE</span>
-            <h2>Why four GPUs must communicate</h2>
-            <p>Each GPU computed only part of the answer. Every GPU needs the same total before training can continue.</p>
-          </div>
-          <div className="transformation">
-            <div className="transform-stage">
-              <b>1 · BEFORE</b>
-              <p>Each GPU knows only its local vector.</p>
-              <div className="gpu-grid compact">
-                {input.map((v, i) => <div className="gpu-card" key={i}><b>GPU{i}</b><code>{v}</code></div>)}
-              </div>
-            </div>
-            <div className="transform-arrow">
-              <span>AllReduce SUM</span>
-              <strong>→</strong>
-              <small>exchange + add</small>
-            </div>
-            <div className="transform-stage">
-              <b>2 · AFTER</b>
-              <p>Every GPU knows the elementwise total.</p>
-              <div className="gpu-grid compact">
-                {Array(4).fill("[16, 20]").map((v, i) => <div className="gpu-card result" key={i}><b>GPU{i}</b><code>{v}</code></div>)}
-              </div>
-            </div>
-          </div>
-          <div className="calculation">
-            <span>Position 0</span><code>1 + 3 + 5 + 7 = 16</code>
-            <span>Position 1</span><code>2 + 4 + 6 + 8 = 20</code>
-          </div>
-          <div className="meaning-line"><b>The key idea:</b> “AllReduce” names the result. Ring, tree, and recursive doubling are different ways to produce it.</div>
-        </section>
-      )}
-
-      <section className="guided-learning">
-        <div className="section-heading">
-          <div><span className="mini-label">GUIDED EXPLANATION</span><h2>Learn it in the right order</h2></div>
-          <span className="step-count">Step {teachingStep + 1} of {teachingSteps.length}</span>
-        </div>
-        <div className="teaching-tabs" role="tablist" aria-label="Lesson explanation stages">
-          {teachingSteps.map((step, i) => (
-            <button key={step.label} role="tab" aria-selected={teachingStep === i} className={teachingStep === i ? "active" : ""} onClick={() => setTeachingStep(i)}>
-              <span>{i + 1}</span>{step.label}
-            </button>
-          ))}
-        </div>
-        <div className="teaching-panel">
-          <div className="teaching-number">{String(teachingStep + 1).padStart(2, "0")}</div>
-          <div>
-            <span className="mini-label">{currentStep.label}</span>
-            <h2>{currentStep.title}</h2>
-            <p className="teaching-body">{currentStep.body}</p>
-            {currentStep.points.length > 0 && <ul>{currentStep.points.map((point, i) => <li key={i}>{point}</li>)}</ul>}
-          </div>
-        </div>
-        <div className="teaching-nav">
-          <button disabled={teachingStep === 0} onClick={() => setTeachingStep(teachingStep - 1)}>← Previous idea</button>
-          <button disabled={teachingStep === teachingSteps.length - 1} onClick={() => setTeachingStep(teachingStep + 1)}>Next idea →</button>
-        </div>
-      </section>
+      <ToyWalkthrough key={lesson.id} example={example} />
+      <DetailedLesson lesson={lesson} example={example} />
 
       <details className="reference-notes">
         <summary>Open the complete technical reference for this lesson</summary>
