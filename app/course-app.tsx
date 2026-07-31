@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { glossary, lessons, modules, type Lesson } from "./course-data";
 import { toyExamples, type ToyExample } from "./toy-examples";
+import { LessonOneTutorial } from "./lesson-one";
 
 type View = "home" | "course" | "lab" | "atlas" | "roadmap";
 type Lab = "collective" | "performance" | "topology" | "training";
@@ -331,52 +332,58 @@ function CourseLesson({
         </button>
       </header>
 
-      <section className="intuition-card">
-        <span>INTUITION FIRST</span>
-        <p>{lesson.intuition}</p>
-      </section>
+      {lesson.number === 1 ? (
+        <LessonOneTutorial />
+      ) : (
+        <>
+          <section className="intuition-card">
+            <span>INTUITION FIRST</span>
+            <p>{lesson.intuition}</p>
+          </section>
 
-      <ToyWalkthrough key={lesson.id} example={example} />
-      <DetailedLesson lesson={lesson} example={example} />
+          <ToyWalkthrough key={lesson.id} example={example} />
+          <DetailedLesson lesson={lesson} example={example} />
 
-      <details className="reference-notes">
-        <summary>Open the complete technical reference for this lesson</summary>
-        <div className="lesson-grid">
-          <LessonSection title="Mathematical model" items={lesson.math} />
-          <LessonSection title="Algorithmic reasoning" items={lesson.algorithm} />
-          <LessonSection title="Implementation path" items={lesson.implementation} />
-          <LessonSection title="Performance model" items={lesson.performance} />
-          <LessonSection title="How real systems use it" items={lesson.systems} />
-          <LessonSection title="Failure modes & misconceptions" items={lesson.pitfalls} tone="warning" />
-        </div>
-      </details>
+          <details className="reference-notes">
+            <summary>Open the complete technical reference for this lesson</summary>
+            <div className="lesson-grid">
+              <LessonSection title="Mathematical model" items={lesson.math} />
+              <LessonSection title="Algorithmic reasoning" items={lesson.algorithm} />
+              <LessonSection title="Implementation path" items={lesson.implementation} />
+              <LessonSection title="Performance model" items={lesson.performance} />
+              <LessonSection title="How real systems use it" items={lesson.systems} />
+              <LessonSection title="Failure modes & misconceptions" items={lesson.pitfalls} tone="warning" />
+            </div>
+          </details>
 
-      <section className="code-ladder">
-        <div className="section-heading">
-          <div>
-            <span className="mini-label">IMPLEMENTATION LADDER</span>
-            <h2>From semantics to production</h2>
-          </div>
-          <div className="step-pills" role="tablist" aria-label="Implementation levels">
-            {codeLadder.map(([name], i) => (
-              <button role="tab" aria-selected={codeIndex === i} className={codeIndex === i ? "active" : ""} onClick={() => setCodeIndex(i)} key={name}>{i + 1}</button>
-            ))}
-          </div>
-        </div>
-        <div className="code-stage">
-          <div className="code-caption">{codeLadder[codeIndex][0]}</div>
-          <pre><code>{codeLadder[codeIndex][1]}</code></pre>
-          <p>{[
-            "This models the semantic result in one address space. There is no real communication yet.",
-            "The rank dimension is explicit, making elementwise ownership visible.",
-            "Tensor computation is still local; a tensor reduction is not a distributed collective.",
-            "Each process owns only its local tensor. The backend now coordinates real participants.",
-            "A GPU kernel performs local reduction; a transport must still make remote data visible.",
-            "Production schedules pipeline chunks and fuse receive, reduction, copy, and forwarding.",
-            "A transport implementation must define posting, completion, buffer ownership, and errors.",
-          ][codeIndex]}</p>
-        </div>
-      </section>
+          <section className="code-ladder">
+            <div className="section-heading">
+              <div>
+                <span className="mini-label">IMPLEMENTATION LADDER</span>
+                <h2>From semantics to production</h2>
+              </div>
+              <div className="step-pills" role="tablist" aria-label="Implementation levels">
+                {codeLadder.map(([name], i) => (
+                  <button role="tab" aria-selected={codeIndex === i} className={codeIndex === i ? "active" : ""} onClick={() => setCodeIndex(i)} key={name}>{i + 1}</button>
+                ))}
+              </div>
+            </div>
+            <div className="code-stage">
+              <div className="code-caption">{codeLadder[codeIndex][0]}</div>
+              <pre><code>{codeLadder[codeIndex][1]}</code></pre>
+              <p>{[
+                "This models the semantic result in one address space. There is no real communication yet.",
+                "The rank dimension is explicit, making elementwise ownership visible.",
+                "Tensor computation is still local; a tensor reduction is not a distributed collective.",
+                "Each process owns only its local tensor. The backend now coordinates real participants.",
+                "A GPU kernel performs local reduction; a transport must still make remote data visible.",
+                "Production schedules pipeline chunks and fuse receive, reduction, copy, and forwarding.",
+                "A transport implementation must define posting, completion, buffer ownership, and errors.",
+              ][codeIndex]}</p>
+            </div>
+          </section>
+        </>
+      )}
 
       <section className="exercise-block">
         <div className="section-heading">
@@ -685,6 +692,14 @@ export function CourseApp() {
     try { localStorage.setItem("collective-course-progress", JSON.stringify([...completed])); } catch {}
   }, [completed]);
 
+  useEffect(() => {
+    const requestedLesson = new URLSearchParams(window.location.search).get("lesson");
+    if (requestedLesson && lessons.some(candidate => candidate.id === requestedLesson)) {
+      setLessonId(requestedLesson);
+      setView("course");
+    }
+  }, []);
+
   const lesson = lessons.find(l => l.id === lessonId) ?? lessons[0];
   const visibleLessons = useMemo(() => lessons.filter(l => `${l.title} ${l.thesis}`.toLowerCase().includes(query.toLowerCase())), [query]);
   const progress = Math.round(completed.size / lessons.length * 100);
@@ -693,6 +708,7 @@ export function CourseApp() {
     setLessonId(id);
     setView("course");
     setSidebar(false);
+    window.history.replaceState(null, "", `?lesson=${id}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
